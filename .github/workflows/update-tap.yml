@@ -1,0 +1,79 @@
+name: update-homebrew-tap
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  bump-formula:
+    runs-on: ubuntu-latest
+    env:
+      TAP_REPO: FRAQTIV/homebrew-git
+      FORMULA: gitrules-mcp.rb
+    steps:
+      - name: Extract version from tag
+        id: vars
+        run: |
+          TAG="${GITHUB_REF##*/}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
+      - name: Download source tarball
+        run: |
+          curl -L -s "https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.vars.outputs.tag }}.tar.gz" -o source.tar.gz
+          echo "sha256=$(sha256sum source.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
+        id: dl
+      - name: Checkout tap repo
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.TAP_REPO }}
+          path: tap
+          token: ${{ secrets.TAP_PUSH_TOKEN }}
+      - name: Update formula
+        run: |
+          cd tap
+          FORMULA_PATH="Formula/${FORMULA}"
+          if [ ! -f "$FORMULA_PATH" ]; then
+            echo "Formula file not found: $FORMULA_PATH" >&2; exit 1; fi
+          NEW_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.vars.outputs.tag }}.tar.gz"
+          # Update url line
+          sed -i "s#^  url \".*\"#  url \"${NEW_URL}\"#" "$FORMULA_PATH"
+          # Update sha256 line
+          sed -i "s#^  sha256 \".*\"#  sha256 \"${{ steps.dl.outputs.sha256 }}\"#" "$FORMULA_PATH"
+          # Create branch
+          BRANCH="bump-${{ steps.vars.outputs.tag }}"
+          git checkout -b "$BRANCH"
+          git config user.name "github-actions"
+          git config user.email "actions@users.noreply.github.com"
+          git add "$FORMULA_PATH"
+          git commit -m "chore: bump ${FORMULA} to ${{ steps.vars.outputs.tag }}"
+          git push origin "$BRANCH"
+          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
+        id: bump
+      - name: Create PR
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.TAP_PUSH_TOKEN }}
+          script: |
+            const { tag, version } = { tag: process.env.TAG || '${{ steps.vars.outputs.tag }}', version: '${{ steps.vars.outputs.version }}' };
+            const branch = '${{ steps.bump.outputs.branch }}';
+            const [owner, repo] = process.env.TAP_REPO.split('/')
+            const title = `Bump formula to ${tag}`;
+            const body = `Automated update for version ${tag}.\n\nSource: https://github.com/${process.env.GITHUB_REPOSITORY}/releases/tag/${tag}`;
+            try {
+              const existing = await github.rest.pulls.list({ owner, repo, state: 'open', head: owner+':'+branch });
+              if (existing.data.length) {
+                core.info('PR already exists');
+              } else {
+                await github.rest.pulls.create({ owner, repo, title, body, head: branch, base: 'main' });
+              }
+            } catch (e) {
+              core.setFailed(e.message);
+            }
+        env:
+          TAP_REPO: ${{ env.TAP_REPO }}
+          TAG: ${{ steps.vars.outputs.tag }}

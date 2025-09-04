@@ -69,6 +69,13 @@ brew install fraqtiv/git/gitrules-mcp
 
 Formula reference is in `formula/gitrules-mcp.rb` for initial publishing.
 
+Automated Tap Updates:
+
+When a new tag `v*` is pushed, the `update-tap.yml` workflow (once merged) can
+open a PR in the tap repository to bump the formula. Provide a `TAP_PUSH_TOKEN`
+secret (PAT with `repo` scope) in this repo so the workflow can push to
+`fraqtiv/homebrew-git`.
+
 Use installed binary (after npm i -g or via npx):
 
 ```bash
