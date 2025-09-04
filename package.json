@@ -35,6 +35,9 @@
     "CHANGELOG.md",
     "LICENSE"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "dependencies": {
     "zod": "^3.23.8",
     "yaml": "^2.5.0"
