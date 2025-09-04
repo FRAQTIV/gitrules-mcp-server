@@ -59,7 +59,7 @@ jobs:
         id: notes
         run: |
           VERSION=$(node -p "require('./package.json').version")
-          awk -v ver="${VERSION}" 'BEGIN{in=0} /^## \["ver"\]/ {in=1; next} /^## \[/ {if (in) exit} {if (in) print}' CHANGELOG.md > RELEASE_NOTES.md || true
+          awk -v ver="${VERSION}" 'BEGIN{in=0} $0 ~ ("^## \\[" ver "\\]") {in=1; next} /^## \[/ {if (in) exit} {if (in) print}' CHANGELOG.md > RELEASE_NOTES.md || true
           if [ ! -s RELEASE_NOTES.md ]; then echo "No changelog section found" > RELEASE_NOTES.md; fi
           echo '--- RELEASE NOTES ---'
           cat RELEASE_NOTES.md
