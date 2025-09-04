@@ -1,0 +1,39 @@
+{
+  "name": "@fraqtiv/git-rules-mcp",
+  "version": "0.3.0",
+  "description": "Assistant-agnostic MCP server exposing git rules & workflow tools (API v1.1.0).",
+  "type": "module",
+  "license": "MIT",
+  "private": false,
+  "bin": {
+    "mcp-git-rules": "dist/index.js"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./schemas": "./dist/types/schemas.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "ts-node src/index.ts --transport=stdio",
+    "dev:http": "ts-node src/index.ts --transport=http --port=3030",
+    "lint": "eslint . --ext .ts",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "pack": "npm pack",
+    "prepublishOnly": "npm run lint && npm test"
+  },
+  "keywords": ["mcp","git","workflow","assistant","rules"],
+  "repository": { "type": "git", "url": "git+https://github.com/FRAQTIV/gitrules-mcp-server.git" },
+  "dependencies": {
+    "zod": "^3.23.8",
+    "yaml": "^2.5.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.30",
+    "typescript": "^5.4.0",
+    "eslint": "^8.57.0",
+    "ts-node": "^10.9.2"
+  }
+}

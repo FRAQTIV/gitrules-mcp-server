@@ -1,0 +1,9 @@
+{
+  "client": "example-assistant",
+  "servers": {
+    "git-rules": {
+      "command": "mcp-git-rules",
+      "args": []
+    }
+  }
+}

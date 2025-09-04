@@ -1,0 +1,21 @@
+{
+  "api_version": "1.1.0",
+  "data": {
+    "server_version": "0.3.0",
+    "api_version": "1.1.0",
+    "capabilities": ["format:neutral","format:markdown","transport:stdio","transport:http"],
+    "tools": [
+      {"name":"server.info","stability":"stable"},
+      {"name":"server.health","stability":"stable"},
+      {"name":"git.rules.validate","stability":"stable"},
+      {"name":"git.rules.status","stability":"stable"},
+      {"name":"git.workflow.suggest","stability":"stable"},
+      {"name":"git.workflow.run","stability":"experimental"},
+      {"name":"server.config","stability":"experimental"},
+      {"name":"git.rules.simulate","stability":"experimental"}
+    ],
+    "deprecation_notices": [
+      {"tool":"git.workflow.run","alternative":"git.rules.simulate","removal_version":"0.5.0","note":"Replace run with explicit simulation first."}
+    ]
+  }
+}
