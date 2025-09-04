@@ -250,6 +250,43 @@ npm link   # exposes global symlinks
 
 ### MCP Client Configuration Examples
 
+## Release Process
+
+Automated publish occurs when a git tag matching pattern `v*` is pushed to the
+origin repository (workflow: `publish-on-tag.yml`). Steps to cut a release:
+
+1. Ensure main (or develop) contains the desired commits.
+1. Update `package.json` version & add a CHANGELOG section `## [x.y.z] - YYYY-MM-DD`.
+1. Commit & merge via PR.
+1. Create and push tag:
+
+```bash
+git tag vX.Y.Z
+git push origin vX.Y.Z
+```
+
+1. Workflow validates version match, runs tests, publishes to npm, then creates
+	a GitHub Release with the matched changelog section.
+
+Requirements:
+
+- Secret `NPM_TOKEN` (publish rights for the @fraqtiv scope) in repo settings.
+- Tag version must equal `package.json` version (without the leading `v`).
+
+Dry Run (local validation):
+
+```bash
+TAG=v0.0.0-test
+VERSION=${TAG#v}
+PKG=$(node -p "require('./package.json').version")
+echo $TAG $VERSION $PKG
+npm pack --dry-run
+```
+
+If publish fails (e.g., 403), verify the token scope and that the version has
+not already been published (npm prohibits overwriting existing versions).
+
+
 Claude Desktop / VS Code (settings fragment):
 
 ```jsonc
