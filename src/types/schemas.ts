@@ -187,5 +187,5 @@ export interface ToolDefinition<I, O> {
   description?: string;
   inputSchema: z.ZodType<I>;
   outputSchema: z.ZodType<O>;
-  handler: (input: I) => Promise<O>;
+  handler: (_input: I) => Promise<O>;
 }
