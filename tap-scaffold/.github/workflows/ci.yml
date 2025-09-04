@@ -1,0 +1,20 @@
+name: tap-ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  formula-test:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Brew Audit
+        run: brew audit --strict --online ./Formula/gitrules-mcp.rb || true
+      - name: Install Formula
+        run: brew install --build-from-source ./Formula/gitrules-mcp.rb
+      - name: Test Formula
+        run: brew test gitrules-mcp -v
