@@ -1,7 +1,30 @@
 #!/bin/sh
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Read ref updates from stdin (may be empty if client provides none)
+UPDATES=$(cat)
+
+only_tags=1
+if [ -n "$UPDATES" ]; then
+  # Format lines: <local_sha> <remote_sha> <local_ref> <remote_ref>
+  # If any remote ref is NOT a tag, then it's not a tag-only push.
+  echo "$UPDATES" | while read -r LOCAL REMOTE LOCAL_REF REMOTE_REF; do
+    [ -z "$REMOTE_REF" ] && continue
+    case "$REMOTE_REF" in
+      refs/tags/*) : ;; # tag OK
+      *) only_tags=0; break ;;
+    esac
+  done
+fi
+
+if [ "$only_tags" = 1 ]; then
+  # Allow tag-only pushes (release tags) directly.
+  exit 0
+fi
+
 if [ "$BRANCH" = "main" ] || [ "$BRANCH" = "develop" ] || [ "$BRANCH" = "dev" ]; then
-  echo "Direct pushes to $BRANCH are not allowed. Open a PR (feature/* -> develop) then merge to main." >&2
+  echo "Direct non-tag pushes to $BRANCH are not allowed. Open a PR (feature/* -> develop) then merge to main." >&2
   exit 1
 fi
+
 exit 0
