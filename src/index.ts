@@ -7,8 +7,8 @@ import { neutralFormat } from './formatting/neutralFormatter.js';
 
 // Simple stdio transport prototype
 
-interface IncomingRequest { id: string; tool: string; input: unknown; format?: 'structured' | 'markdown'; }
-interface OutgoingResponse { id: string; result?: unknown; error?: unknown; }
+interface IncomingRequest { id: string | number; tool: string; input: unknown; format?: 'structured' | 'markdown'; }
+interface OutgoingResponse { id: string | number; result?: unknown; error?: unknown; jsonrpc?: '2.0'; }
 
 const toolMap = new Map(toolDefinitions.map(d => [d.name, d] as const));
 
@@ -47,13 +47,60 @@ async function executeTool(req: IncomingRequest) {
   }
 }
 
+function mcpToolList() {
+  return toolDefinitions.map(t => ({
+    name: t.name,
+    description: t.description || '',
+    stability: (t as any).stability || 'stable'
+  }));
+}
+
+async function executeToolCore(name: string, input: unknown, id: string | number) {
+  return executeTool({ id, tool: name, input, format: 'structured' });
+}
+
+async function handleJsonRpc(obj: any): Promise<OutgoingResponse | null> {
+  if (!obj || typeof obj !== 'object' || !('method' in obj)) return null;
+  const id = 'id' in obj ? obj.id : undefined;
+  const serverVersion = process.env.npm_package_version || '0.0.0';
+  try {
+    switch (obj.method) {
+      case 'initialize':
+        return { jsonrpc: '2.0', id, result: { name: '@fraqtiv/git-rules-mcp', version: serverVersion, capabilities: { tools: { list: true, call: true }, formats: ['structured','markdown','text'] } }};
+      case 'tools/list':
+        return { jsonrpc: '2.0', id, result: { tools: mcpToolList() } };
+      case 'tools/call': {
+        const params = obj.params || {};
+        const name = params.name;
+        const args = params.arguments || {};
+        if (typeof name !== 'string') throw new Error('Tool name required');
+        const legacy = await executeToolCore(name, args, id ?? 'call');
+        if ((legacy as any).error) {
+          return { jsonrpc: '2.0', id, error: { code: -32001, message: ((legacy as any).error as any).error?.message || 'Tool error', data: (legacy as any).error } } as any;
+        }
+        return { jsonrpc: '2.0', id, result: (legacy as any).result };
+      }
+      default:
+        return { jsonrpc: '2.0', id, error: { code: -32601, message: 'Method not found' } };
+    }
+  } catch (e: any) {
+    return { jsonrpc: '2.0', id, error: { code: -32000, message: e?.message || 'Internal error' } };
+  }
+}
+
 async function handleLine(line: string) {
   line = line.trim();
   if (!line) return;
-  let parsed: IncomingRequest;
-  try { parsed = JSON.parse(line); } catch (e) { return write({ id: 'unknown', error: { message: 'Invalid JSON' }}); }
-  const response = await executeTool(parsed);
-  write(response);
+  let parsed: any;
+  try { parsed = JSON.parse(line); } catch (e) { return write({ id: 'unknown', error: { message: 'Invalid JSON' }} as any); }
+  const rpc = await handleJsonRpc(parsed);
+  if (rpc) { write(rpc); return; }
+  if (parsed && typeof parsed === 'object' && 'tool' in parsed) {
+    const response = await executeTool(parsed as IncomingRequest);
+    write(response);
+    return;
+  }
+  write({ id: parsed?.id || 'unknown', error: { message: 'Unsupported message shape' }} as any);
 }
 
 function write(obj: OutgoingResponse) {
