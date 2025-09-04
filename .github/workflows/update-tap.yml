@@ -1,79 +1,119 @@
-name: update-homebrew-tap
+name: tap-update
 
 on:
   push:
-    tags:
-      - 'v*'
+    tags: [ 'v*.*.*' ]
+  issue_comment:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to use (e.g. v0.3.1)"
+        required: false
 
-permissions:
-  contents: read
-  pull-requests: write
+concurrency:
+  group: tap-update-${{ github.ref || github.run_id }}
+  cancel-in-progress: false
 
 jobs:
-  bump-formula:
+  update-tap:
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '/tap retry') &&
+       (github.event.comment.author_association == 'OWNER' || github.event.comment.author_association == 'MEMBER' || github.event.comment.author_association == 'COLLABORATOR'))
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     env:
-      TAP_REPO: FRAQTIV/homebrew-git
-      FORMULA: gitrules-mcp.rb
+      TAP_REPO: FRAQTIV/homebrew-gitrules
+      FORMULA_PATH: Formula/gitrules-mcp.rb
+      UPSTREAM_REPO: FRAQTIV/gitrules-mcp-server
     steps:
-      - name: Extract version from tag
-        id: vars
-        run: |
-          TAG="${GITHUB_REF##*/}"
-          echo "tag=$TAG" >> $GITHUB_OUTPUT
-          echo "version=${TAG#v}" >> $GITHUB_OUTPUT
-      - name: Download source tarball
-        run: |
-          curl -L -s "https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.vars.outputs.tag }}.tar.gz" -o source.tar.gz
-          echo "sha256=$(sha256sum source.tar.gz | awk '{print $1}')" >> $GITHUB_OUTPUT
-        id: dl
-      - name: Checkout tap repo
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
-          repository: ${{ env.TAP_REPO }}
-          path: tap
-          token: ${{ secrets.TAP_PUSH_TOKEN }}
-      - name: Update formula
+          fetch-depth: 0
+
+      - name: Determine tag/version
+        id: ver
         run: |
+          set -euo pipefail
+          TAG_INPUT="${{ inputs.tag || '' }}"
+          if [[ -n "${TAG_INPUT}" ]]; then
+            VERSION="${TAG_INPUT}"
+          elif [[ "${{ github.ref }}" == refs/tags/* ]]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            # Fallback to latest tag in repo
+            VERSION="$(git describe --tags --abbrev=0)"
+          fi
+          if [[ -z "${VERSION}" ]]; then
+            echo "No version tag found. Exiting." >&2
+            exit 1
+          fi
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute tarball SHA256
+        id: sha
+        run: |
+          set -euo pipefail
+          VERSION="${{ steps.ver.outputs.version }}"
+          TARBALL_URL="https://github.com/${UPSTREAM_REPO}/archive/refs/tags/${VERSION}.tar.gz"
+          echo "Tarball: ${TARBALL_URL}"
+          curl -L -s "${TARBALL_URL}" -o source.tgz
+          SHA256="$(shasum -a 256 source.tgz | awk '{print $1}')"
+          echo "sha256=${SHA256}" >> "$GITHUB_OUTPUT"
+          echo "tarball_url=${TARBALL_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Clone tap repo
+        run: |
+          set -euo pipefail
+          : "Cloning ${TAP_REPO}"
+          git clone "https://x-access-token:${{ secrets.TAP_PUSH_TOKEN }}@github.com/${TAP_REPO}.git" tap
+
+      - name: Ensure formula exists (skip if missing)
+        run: |
+          if [[ ! -f "tap/${FORMULA_PATH}" ]]; then
+            echo "Formula not found in tap: tap/${FORMULA_PATH}. Exiting gracefully." >&2
+            exit 0
+          fi
+
+      - name: Update formula file
+        id: patch
+        run: |
+          set -euo pipefail
           cd tap
-          FORMULA_PATH="Formula/${FORMULA}"
-          if [ ! -f "$FORMULA_PATH" ]; then
-            echo "Formula file not found: $FORMULA_PATH" >&2; exit 1; fi
-          NEW_URL="https://github.com/${{ github.repository }}/archive/refs/tags/${{ steps.vars.outputs.tag }}.tar.gz"
-          # Update url line
-          sed -i "s#^  url \".*\"#  url \"${NEW_URL}\"#" "$FORMULA_PATH"
-          # Update sha256 line
-          sed -i "s#^  sha256 \".*\"#  sha256 \"${{ steps.dl.outputs.sha256 }}\"#" "$FORMULA_PATH"
-          # Create branch
-          BRANCH="bump-${{ steps.vars.outputs.tag }}"
-          git checkout -b "$BRANCH"
-          git config user.name "github-actions"
-          git config user.email "actions@users.noreply.github.com"
-          git add "$FORMULA_PATH"
-          git commit -m "chore: bump ${FORMULA} to ${{ steps.vars.outputs.tag }}"
-          git push origin "$BRANCH"
-          echo "branch=$BRANCH" >> $GITHUB_OUTPUT
-        id: bump
-      - name: Create PR
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.TAP_PUSH_TOKEN }}
-          script: |
-            const { tag, version } = { tag: process.env.TAG || '${{ steps.vars.outputs.tag }}', version: '${{ steps.vars.outputs.version }}' };
-            const branch = '${{ steps.bump.outputs.branch }}';
-            const [owner, repo] = process.env.TAP_REPO.split('/')
-            const title = `Bump formula to ${tag}`;
-            const body = `Automated update for version ${tag}.\n\nSource: https://github.com/${process.env.GITHUB_REPOSITORY}/releases/tag/${tag}`;
-            try {
-              const existing = await github.rest.pulls.list({ owner, repo, state: 'open', head: owner+':'+branch });
-              if (existing.data.length) {
-                core.info('PR already exists');
-              } else {
-                await github.rest.pulls.create({ owner, repo, title, body, head: branch, base: 'main' });
-              }
-            } catch (e) {
-              core.setFailed(e.message);
-            }
-        env:
-          TAP_REPO: ${{ env.TAP_REPO }}
-          TAG: ${{ steps.vars.outputs.tag }}
+          VERSION="${{ steps.ver.outputs.version }}"
+          NEW_URL="${{ steps.sha.outputs.tarball_url }}"
+          NEW_SHA="${{ steps.sha.outputs.sha256 }}"
+
+          echo "Updating ${FORMULA_PATH} to ${VERSION}"
+          cp "${FORMULA_PATH}" "${FORMULA_PATH}.bak"
+          # Replace url and sha256 lines
+          sed -i.bak -E "s|^(\s*url\s+\").*(\")$|\1${NEW_URL}\2|" "${FORMULA_PATH}"
+          sed -i.bak -E "s|^(\s*sha256\s+\").*(\")$|\1${NEW_SHA}\2|" "${FORMULA_PATH}"
+
+          if git diff --quiet -- "${FORMULA_PATH}"; then
+            echo "No changes to commit."
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "changed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit and push changes
+        if: steps.patch.outputs.changed == 'true'
+        run: |
+          set -euo pipefail
+          cd tap
+          git config user.name "fraqtiv-bot"
+          git config user.email "opensource@fraqtiv.com"
+          git add "${FORMULA_PATH}"
+          git commit -m "gitrules-mcp: update to ${{ steps.ver.outputs.version }}"
+          git push origin HEAD:main
+
+      - name: Summary
+        run: |
+          echo "Updated ${TAP_REPO}/${FORMULA_PATH} to ${{ steps.ver.outputs.version }}"
+          echo "SHA256: ${{ steps.sha.outputs.sha256 }}"
+          echo "Tarball: ${{ steps.sha.outputs.tarball_url }}"
