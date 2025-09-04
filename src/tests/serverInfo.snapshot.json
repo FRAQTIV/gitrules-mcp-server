@@ -9,10 +9,13 @@
       {"name":"server.health","stability":"stable"},
       {"name":"git.rules.validate","stability":"stable"},
       {"name":"git.rules.status","stability":"stable"},
+  {"name":"git.rules.policy","stability":"stable"},
+  {"name":"git.hooks.install","stability":"experimental"},
       {"name":"git.workflow.suggest","stability":"stable"},
       {"name":"git.workflow.run","stability":"experimental"},
       {"name":"server.config","stability":"experimental"},
       {"name":"git.rules.simulate","stability":"experimental"}
+  ,{"name":"git.rules.policy.markdown","stability":"experimental"}
     ],
     "deprecation_notices": [
       {"tool":"git.workflow.run","alternative":"git.rules.simulate","removal_version":"0.5.0","note":"Replace run with explicit simulation first."}

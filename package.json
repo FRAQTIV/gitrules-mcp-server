@@ -1,12 +1,14 @@
 {
   "name": "@fraqtiv/git-rules-mcp",
-  "version": "0.3.0",
+  "version": "0.3.2",
   "description": "Assistant-agnostic MCP server exposing git rules & workflow tools (API v1.1.0).",
   "type": "module",
   "license": "MIT",
   "private": false,
   "bin": {
-    "mcp-git-rules": "dist/index.js"
+    "mcp-git-rules": "bin/mcp-git-rules",
+    "fraqtiv-git-rules": "bin/fraqtiv-git-rules",
+    "git-rules-mcp": "bin/git-rules-mcp"
   },
   "exports": {
     ".": "./dist/index.js",
@@ -22,7 +24,7 @@
     "lint": "eslint . --ext .ts",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "pack": "npm pack",
-    "prepare": "npm run build",
+    "prepare": "npm run build && node scripts/make-executable.cjs",
     "prepublishOnly": "npm run lint && npm test"
   },
   "keywords": ["mcp","git","workflow","assistant","rules"],

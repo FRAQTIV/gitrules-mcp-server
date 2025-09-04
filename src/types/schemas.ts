@@ -166,6 +166,31 @@ export const GitWorkflowRunOutputSchema = BaseResponseSchema.extend({
   })
 });
 
+// git.rules.policy (static policy exposition)
+export const GitRulesPolicyInputSchema = z.object({});
+export const GitRulesPolicyOutputSchema = BaseResponseSchema.extend({
+  data: z.any()
+});
+
+export type GitRulesPolicyInput = z.infer<typeof GitRulesPolicyInputSchema>;
+export type GitRulesPolicyOutput = z.infer<typeof GitRulesPolicyOutputSchema>;
+
+// git.hooks.install
+export const GitHooksInstallInputSchema = z.object({ force: z.boolean().optional() });
+export const GitHooksInstallOutputSchema = BaseResponseSchema.extend({
+  data: z.object({ path: z.string(), overwritten: z.boolean(), message: z.string() })
+});
+export type GitHooksInstallInput = z.infer<typeof GitHooksInstallInputSchema>;
+export type GitHooksInstallOutput = z.infer<typeof GitHooksInstallOutputSchema>;
+
+// git.rules.policy.markdown
+export const GitRulesPolicyMarkdownInputSchema = z.object({});
+export const GitRulesPolicyMarkdownOutputSchema = BaseResponseSchema.extend({
+  data: z.object({ markdown: z.string() })
+});
+export type GitRulesPolicyMarkdownInput = z.infer<typeof GitRulesPolicyMarkdownInputSchema>;
+export type GitRulesPolicyMarkdownOutput = z.infer<typeof GitRulesPolicyMarkdownOutputSchema>;
+
 export type ServerInfoInput = z.infer<typeof ServerInfoInputSchema>;
 export type ServerInfoOutput = z.infer<typeof ServerInfoOutputSchema>;
 export type ServerHealthInput = z.infer<typeof ServerHealthInputSchema>;

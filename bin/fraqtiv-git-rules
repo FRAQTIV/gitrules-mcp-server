@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// Wrapper with dev fallback: prefer built dist, else run source via ts-node if available.
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';

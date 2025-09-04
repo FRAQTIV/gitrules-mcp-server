@@ -1,24 +1,24 @@
 ## FRAQTIV Homebrew Tap (git)
 
-This directory is a scaffold you can copy into a new repository: `fraqtiv/homebrew-git`.
+This directory is a scaffold you can copy into a new repository: `fraqtiv/homebrew-gitrules`.
 
 ### Create Tap Repo
 
-1. On GitHub create **fraqtiv/homebrew-git** (public, MIT).
+1. On GitHub create **fraqtiv/homebrew-gitrules** (public, MIT).
 2. Copy contents of `tap-scaffold/` to the root of that repo.
 3. Commit & push.
 
 ### Usage
 
 ```bash
-brew tap fraqtiv/git https://github.com/FRAQTIV/homebrew-git
+brew tap fraqtiv/gitrules https://github.com/FRAQTIV/homebrew-gitrules
 brew install gitrules-mcp
 ```
 
 Or (after users tap once):
 
 ```bash
-brew install fraqtiv/git/gitrules-mcp
+brew install fraqtiv/gitrules/gitrules-mcp
 ```
 
 ### Releasing a New Version

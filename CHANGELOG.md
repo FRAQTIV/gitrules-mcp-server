@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [0.3.0] - 2025-09-04
 
+## [0.3.2] - 2025-09-04
+
+### Added (0.3.2)
+
+- Dev fallback in bin wrappers: if `dist/index.js` missing, loads `src/index.ts`
+    (attempts ts-node) so local repo clones work without global install or build.
+
+### Fixed (0.3.2)
+
+- Correct wrapper logic for local development reduces ENOENT confusion.
+
+## [0.3.1] - 2025-09-04
+
+### Fixed (0.3.1)
+
+- Mark bin scripts executable (ENOENT in MCP clients due to missing +x).
+    Added build step script `scripts/make-executable.cjs`.
+
 ### Added (0.3.0)
 
 - server.config tool (get/update .gitrules.yaml with caching).
