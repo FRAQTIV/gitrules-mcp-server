@@ -52,6 +52,23 @@ node dist/index.js --transport=http --port=3030 & # start HTTP server
 curl -s localhost:3030/health | jq
 ```
 
+### Homebrew (Tap)
+
+Tap repository (after creating fraqtiv/homebrew-git) and install:
+
+```bash
+brew tap fraqtiv/git https://github.com/FRAQTIV/homebrew-git
+brew install gitrules-mcp
+```
+
+Or directly (once formula merged into tap):
+
+```bash
+brew install fraqtiv/git/gitrules-mcp
+```
+
+Formula reference is in `formula/gitrules-mcp.rb` for initial publishing.
+
 Use installed binary (after npm i -g or via npx):
 
 ```bash
