@@ -6,6 +6,9 @@ import { workflowSuggestDef } from './workflowSuggest.js';
 import { workflowRunDef } from './workflowRun.js';
 import { serverConfigDef } from './serverConfig.js';
 import { gitSimulateDef } from './gitSimulate.js';
+import { gitRulesPolicyDef } from './gitPolicy.js';
+import { gitHooksInstallDef } from './gitHooksInstall.js';
+import { gitRulesPolicyMarkdownDef } from './gitPolicyMarkdown.js';
 
 export const toolDefinitions = [
   serverInfoDef,
@@ -15,5 +18,8 @@ export const toolDefinitions = [
   workflowSuggestDef,
   workflowRunDef,
   serverConfigDef,
-  gitSimulateDef
+  gitSimulateDef,
+  gitRulesPolicyDef,
+  gitHooksInstallDef,
+  gitRulesPolicyMarkdownDef
 ];

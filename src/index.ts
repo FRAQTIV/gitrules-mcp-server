@@ -47,10 +47,58 @@ async function executeTool(req: IncomingRequest) {
   }
 }
 
+// Minimal Zod -> JSON Schema converter (covers the subset we use). If it fails, returns an empty schema.
+function zodToJsonSchema(schema: any): any {
+  try {
+    const t = schema?._def;
+    if (!t) return {};
+    switch (t.typeName) {
+      case 'ZodObject': {
+        const shape = t.shape();
+        const properties: Record<string, any> = {};
+        const required: string[] = [];
+        for (const key of Object.keys(shape)) {
+          const child = shape[key];
+            const childSchema = zodToJsonSchema(child);
+          properties[key] = childSchema;
+          // crude required detection: optional schemas have typeName starting with ZodOptional/ZodDefault
+          if (!['ZodOptional','ZodDefault'].includes(child?._def?.typeName)) required.push(key);
+        }
+        return { type: 'object', properties, required };
+      }
+      case 'ZodString': return { type: 'string' };
+      case 'ZodNumber': return { type: 'number' };
+      case 'ZodBoolean': return { type: 'boolean' };
+      case 'ZodLiteral': return { enum: [t.value] };
+      case 'ZodEnum': return { enum: t.values };
+      case 'ZodUnion': {
+        // assuming union of literals for our cases
+        const options = t.options?.map((o: any)=>zodToJsonSchema(o));
+        if (options.every((o: any)=>o.enum && o.enum.length === 1)) {
+          return { enum: options.flatMap((o: any)=>o.enum) };
+        }
+        return { anyOf: options };
+      }
+      case 'ZodDiscriminatedUnion': {
+        const options = Array.from(t.options.values()).map((o: any)=>zodToJsonSchema(o));
+        return { anyOf: options };
+      }
+      case 'ZodArray': return { type: 'array', items: zodToJsonSchema(t.type) };
+      case 'ZodDefault': return zodToJsonSchema(t.innerType);
+      case 'ZodOptional': { const inner = zodToJsonSchema(t.innerType); return { anyOf: [inner, { type: 'null' }] }; }
+      default: return {};
+    }
+  } catch {
+    return {};
+  }
+}
+
 function mcpToolList() {
   return toolDefinitions.map(t => ({
     name: t.name,
     description: t.description || '',
+    // MCP spec typically: input_schema (JSON Schema). We'll provide a best-effort derivation.
+    input_schema: zodToJsonSchema(t.inputSchema),
     stability: (t as any).stability || 'stable'
   }));
 }
@@ -78,7 +126,10 @@ async function handleJsonRpc(obj: any): Promise<OutgoingResponse | null> {
         if ((legacy as any).error) {
           return { jsonrpc: '2.0', id, error: { code: -32001, message: ((legacy as any).error as any).error?.message || 'Tool error', data: (legacy as any).error } } as any;
         }
-        return { jsonrpc: '2.0', id, result: (legacy as any).result };
+        // Wrap legacy structured data into a content array if absent to align closer with MCP expectations.
+        const resultPayload = (legacy as any).result;
+        // If result already has data/human fields, surface directly.
+        return { jsonrpc: '2.0', id, result: resultPayload };
       }
       default:
         return { jsonrpc: '2.0', id, error: { code: -32601, message: 'Method not found' } };
@@ -108,6 +159,13 @@ function write(obj: OutgoingResponse) {
 }
 
 let buffer = '';
+// Optional auto-install of git hook if environment variable set.
+if (process.env.GIT_RULES_AUTO_HOOK === '1') {
+  (async () => {
+    try { await executeTool({ id: 'auto-hook', tool: 'git.hooks.install', input: { force: true } }); }
+    catch { /* ignore hook install errors */ }
+  })();
+}
 process.stdin.on('data', chunk => {
   buffer += chunk.toString();
   let index;

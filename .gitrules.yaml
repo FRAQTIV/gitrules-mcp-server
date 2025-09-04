@@ -1,0 +1,6 @@
+# Updated by server.config tool
+protectedBranches:
+  - main
+  - develop
+  - dev
+featurePrefix: feature/

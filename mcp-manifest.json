@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "id": "fraqtiv-git-rules",
+  "name": "fraqtiv-git-rules",
+  "version": "0.3.2",
+  "description": "Git branching & PR policy enforcement + workflow suggestions (MCP server)",
+  "command": "npx",
+  "args": ["-y", "@fraqtiv/git-rules-mcp"],
+  "entry": {
+    "type": "stdio",
+    "command": "npx",
+    "args": ["-y", "@fraqtiv/git-rules-mcp@latest"],
+    "notes": "Uses current working directory as repo unless GIT_RULES_REPO_PATH set"
+  },
+  "tags": ["git", "workflow", "policy", "fraqtiv"],
+  "env": {
+    "GIT_RULES_REPO_PATH": { "optional": true, "description": "Path to target git repo (default: CWD)" },
+    "GIT_RULES_PROTECTED": { "optional": true },
+    "GIT_RULES_FEATURE_PREFIX": { "optional": true },
+    "GIT_RULES_AUTO_HOOK": { "optional": true, "description": "Set to 1 to auto-install pre-push hook" }
+  }
+}

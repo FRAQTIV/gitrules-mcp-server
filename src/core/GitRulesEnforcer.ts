@@ -58,15 +58,40 @@ export class GitRulesEnforcer {
 
   validate(command: string, _args: string[] = []) {
     const status = this.getStatus();
-    if (command === 'push' && status.isProtected && !status.isClean) {
-      return { allowed: false, severity: 'error' as const, reason: 'Cannot push to protected branch with uncommitted changes', suggestion: 'Commit or stash changes before pushing.' };
+    const branch = status.branch;
+    const isProtected = status.isProtected; // main or develop
+    const isFeature = branch.startsWith(this.config.featurePrefix);
+    const isHotfix = branch.startsWith('hotfix/');
+
+    // Disallow direct commits to protected branches
+    if (command === 'commit' && isProtected) {
+      return { allowed: false, severity: 'error' as const, reason: `Direct commits to ${branch} are not allowed`, suggestion: `Create a feature branch (e.g. ${this.config.featurePrefix}your-task) and open a PR into develop.` };
     }
-    if (command === 'push' && status.isProtected) {
-      return { allowed: true, severity: 'warn' as const, reason: 'Pushing to protected branch', suggestion: 'Consider using a feature branch.' };
+
+    // Enforce branch naming for feature branches
+    if (command === 'commit' && !isProtected && !isFeature && !isHotfix) {
+      return { allowed: true, severity: 'warn' as const, reason: 'Non-standard branch naming', suggestion: `Use ${this.config.featurePrefix}<name> or hotfix/<name> for consistency.` };
     }
-    if (command === 'commit' && status.isProtected) {
-      return { allowed: true, severity: 'info' as const, reason: 'Commit on protected branch', suggestion: 'Prefer feature branches for new work.' };
+
+    // Prevent push to protected branches except via reviewed merge (heuristic)
+    if (command === 'push' && isProtected) {
+      if (!status.isClean) {
+        return { allowed: false, severity: 'error' as const, reason: 'Cannot push with uncommitted changes', suggestion: 'Commit or stash changes first.' };
+      }
+      // Heuristic: last commit must be a merge commit if pushing to main
+      if (branch === 'main') {
+        try {
+          const last = execSync('git log -1 --pretty=%P').toString().trim().split(' ');
+          if (last.length < 2) {
+            return { allowed: false, severity: 'error' as const, reason: 'Direct push to main blocked', suggestion: 'Merge develop into main via PR instead.' };
+          }
+        } catch { /* ignore and block */
+          return { allowed: false, severity: 'error' as const, reason: 'Direct push to main blocked', suggestion: 'Open a Pull Request from develop.' };
+        }
+      }
+      return { allowed: false, severity: 'error' as const, reason: `Direct push to protected branch ${branch} blocked`, suggestion: 'Open a Pull Request instead.' };
     }
+
     return { allowed: true };
   }
 
