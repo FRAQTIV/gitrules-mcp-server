@@ -22,10 +22,19 @@
     "lint": "eslint . --ext .ts",
     "test": "npm run build && node --test dist/tests/*.test.js",
     "pack": "npm pack",
+    "prepare": "npm run build",
     "prepublishOnly": "npm run lint && npm test"
   },
   "keywords": ["mcp","git","workflow","assistant","rules"],
   "repository": { "type": "git", "url": "git+https://github.com/FRAQTIV/gitrules-mcp-server.git" },
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "zod": "^3.23.8",
     "yaml": "^2.5.0"

@@ -6,7 +6,8 @@ export interface GitRulesConfig {
 
 import fs from 'node:fs';
 import path from 'node:path';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
+import { execSync } from 'node:child_process';
 
 let cachedConfig: GitRulesConfig | null = null;
 let cachedMtime: number | null = null;
@@ -49,7 +50,7 @@ export class GitRulesEnforcer {
     try { current = parseYaml(fs.readFileSync(filePath,'utf8')) || {}; } catch { /* ignore */ }
     if (partial.protectedBranches) current.protectedBranches = partial.protectedBranches;
     if (partial.featurePrefix) current.featurePrefix = partial.featurePrefix;
-    fs.writeFileSync(filePath, '# Updated by server.config tool\n' + require('yaml').stringify(current));
+  fs.writeFileSync(filePath, '# Updated by server.config tool\n' + stringifyYaml(current));
     cachedConfig = null; // force reload next access
     this.refresh();
     return this.config;
@@ -74,9 +75,8 @@ export class GitRulesEnforcer {
     let branch = 'unknown';
     let isClean = true;
     try {
-      const { execSync } = require('node:child_process');
-      branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: this.config.repoPath }).toString().trim();
-      const status = execSync('git status --porcelain', { cwd: this.config.repoPath }).toString();
+  branch = execSync('git rev-parse --abbrev-ref HEAD', { cwd: this.config.repoPath }).toString().trim();
+  const status = execSync('git status --porcelain', { cwd: this.config.repoPath }).toString();
       isClean = status.trim().length === 0;
     } catch {
       // ignore
