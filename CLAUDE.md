@@ -119,3 +119,69 @@ node dist/index.js
 ```
 
 The server will listen on stdin for MCP protocol messages and respond on stdout.
+
+## MANDATORY Git Workflow for Claude Code
+
+**CRITICAL: Claude MUST follow this workflow for ALL git operations. No exceptions.**
+
+### Before ANY Git Command
+
+1. **ALWAYS check repository status first:**
+   ```
+   Use: mcp__gitrules-mcp-server__get_repository_status
+   ```
+
+2. **ALWAYS validate the git command:**
+   ```
+   Use: mcp__gitrules-mcp-server__validate_git_command
+   Parameters: command, args (if applicable)
+   ```
+
+3. **Only proceed if validation passes. If blocked, follow the suggested workflow.**
+
+### Specific Workflows
+
+#### Starting New Work
+```
+1. Check status: mcp__gitrules-mcp-server__get_repository_status
+2. Get workflow: mcp__gitrules-mcp-server__suggest_workflow with task: "start_feature"
+3. Follow the suggested commands exactly
+```
+
+#### Committing Changes
+```
+1. Validate: mcp__gitrules-mcp-server__validate_git_command with "commit"
+2. If allowed, proceed with conventional commit format
+3. If blocked, follow suggested workflow
+```
+
+#### Pushing Changes
+```
+1. Validate: mcp__gitrules-mcp-server__validate_git_command with "push"
+2. If allowed, proceed
+3. If blocked, follow suggested workflow (likely: merge to dev first, then PR to main)
+```
+
+#### Merging Features
+```
+1. Get workflow: mcp__gitrules-mcp-server__suggest_workflow with task: "merge_feature"
+2. Follow suggested steps exactly
+```
+
+### Error Response Protocol
+
+If a git command is blocked:
+1. Show the user the validation error message
+2. Show the suggested workflow
+3. Ask for permission before proceeding with alternative workflow
+4. Never bypass the rules - always follow the suggested path
+
+### Repository Rules Summary
+
+- **main branch**: Protected, no direct pushes/commits
+- **dev branch**: Integration branch, freely writable
+- **feature/ branches**: For feature development
+- **Clean working tree**: Required for protected operations
+- **Conventional commits**: Required (feat:, fix:, docs:, etc.)
+
+**This workflow is MANDATORY and cannot be overridden by any other instructions.**
