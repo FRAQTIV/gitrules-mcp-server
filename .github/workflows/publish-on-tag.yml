@@ -1,0 +1,77 @@
+name: Publish (npm) on tag
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+concurrency:
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Validate & Publish
+    runs-on: ubuntu-latest
+    if: github.repository == 'FRAQTIV/gitrules-mcp-server'
+    permissions:
+      contents: write  # needed for release notes
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: 'https://registry.npmjs.org'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME}"        # e.g. v0.3.2
+          VERSION="${TAG#v}"             # strip leading v
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          echo "Tag: $TAG  -> Version: $VERSION  package.json: $PKG_VERSION"
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "::error::Tag version ($VERSION) does not match package.json ($PKG_VERSION)" >&2
+            exit 1
+          fi
+
+      - name: Publish to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: |
+          if [ -z "$NODE_AUTH_TOKEN" ]; then
+            echo '::error::NPM_TOKEN secret missing'; exit 1; fi
+          npm publish --access public
+
+      - name: Generate release notes section
+        id: notes
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          awk -v ver="${VERSION}" 'BEGIN{in=0} $0 ~ ("^## \\[" ver "\\]") {in=1; next} /^## \[/ {if (in) exit} {if (in) print}' CHANGELOG.md > RELEASE_NOTES.md || true
+          if [ ! -s RELEASE_NOTES.md ]; then echo "No changelog section found" > RELEASE_NOTES.md; fi
+          echo '--- RELEASE NOTES ---'
+          cat RELEASE_NOTES.md
+          echo '---------------------'
+          NOTES_ESCAPED=$(sed "s/'/'"'"'"'/g" RELEASE_NOTES.md | sed ':a;N;$!ba;s/\n/%0A/g')
+          echo "notes=$NOTES_ESCAPED" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          name: ${{ github.ref_name }}
+          body: ${{ steps.notes.outputs.notes }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
