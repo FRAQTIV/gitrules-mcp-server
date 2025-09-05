@@ -1,123 +1,591 @@
 #!/usr/bin/env node
-import { toolDefinitions } from './tools/index.js';
-import { z } from 'zod';
-import http from 'node:http';
-import { markdownFormat } from './formatting/markdownFormatter.js';
-import { neutralFormat } from './formatting/neutralFormatter.js';
 
-// Simple stdio transport prototype
+import { execSync } from 'node:child_process';
+import { readFileSync, existsSync } from 'node:fs';
+import { parse as parseYaml } from 'yaml';
 
-interface IncomingRequest { id: string; tool: string; input: unknown; format?: 'structured' | 'markdown'; }
-interface OutgoingResponse { id: string; result?: unknown; error?: unknown; }
+// MCP Server Implementation for Git Rules Compliance
 
-const toolMap = new Map(toolDefinitions.map(d => [d.name, d] as const));
+interface JsonRpcRequest {
+  jsonrpc: '2.0';
+  id: string | number;
+  method: string;
+  params?: any;
+}
 
-const invocationCounters: Record<string, number> = {};
+interface JsonRpcResponse {
+  jsonrpc: '2.0';
+  id: string | number;
+  result?: any;
+  error?: {
+    code: number;
+    message: string;
+    data?: any;
+  };
+}
 
-function logStructured(event: string, payload: Record<string, any>) {
-  if (process.env.LOG_FORMAT === 'json') {
-    process.stderr.write(JSON.stringify({ ts: new Date().toISOString(), event, ...payload }) + '\n');
+interface GitRulesConfig {
+  protectedBranches: string[];
+  integrationBranch: string;
+  featureBranchPrefix: string;
+  hotfixBranchPrefix: string;
+  requireCleanWorkingTree: boolean;
+  allowDirectPush: boolean;
+  enforceCommitMessageFormat: boolean;
+  allowedCommitTypes: string[];
+}
+
+class GitRulesMCPServer {
+  private config: GitRulesConfig;
+
+  constructor() {
+    this.config = this.loadConfig();
   }
-}
 
-async function executeTool(req: IncomingRequest) {
-  const def = toolMap.get(req.tool);
-  if (!def) return { id: req.id, error: { api_version: '1.1.0', error: { code: 'PRECONDITION_FAILED', message: 'Unknown tool' } }};
-  try {
-    const validatedInput = def.inputSchema.parse(req.input);
-    invocationCounters[def.name] = (invocationCounters[def.name] || 0) + 1;
-    logStructured('tool_invocation', { tool: def.name, id: req.id });
-    const output = await def.handler(validatedInput as any);
-    const validatedOutput = def.outputSchema.parse(output);
-    if (req.format && req.format !== 'structured') {
-      // naive: attempt to format human summary if present or serialize data
-      const base = validatedOutput as any;
-      let human = base.human || JSON.stringify(base.data, null, 2);
-      if (req.format === 'markdown') human = markdownFormat(human);
-      else if (req.format === 'text') human = neutralFormat(human);
-      base.human = human;
-      return { id: req.id, result: base };
+  private loadConfig(): GitRulesConfig {
+    const configPath = '.gitrules.yaml';
+    const defaultConfig: GitRulesConfig = {
+      protectedBranches: ['main', 'master'],
+      integrationBranch: 'dev',
+      featureBranchPrefix: 'feature/',
+      hotfixBranchPrefix: 'hotfix/',
+      requireCleanWorkingTree: true,
+      allowDirectPush: false,
+      enforceCommitMessageFormat: true,
+      allowedCommitTypes: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore']
+    };
+
+    if (existsSync(configPath)) {
+      try {
+        const configFile = readFileSync(configPath, 'utf8');
+        const parsed = parseYaml(configFile);
+        return { ...defaultConfig, ...parsed };
+      } catch (error) {
+        console.error('Error reading config file, using defaults:', error);
+      }
     }
-    return { id: req.id, result: validatedOutput };
-  } catch (err: any) {
-  if (err instanceof z.ZodError) {
-      return { id: req.id, error: { api_version: '1.1.0', error: { code: 'VALIDATION_FAILED', message: 'Validation error', hint: err.errors.map(e=>e.message).join('; ') } } };
-    }
-    return { id: req.id, error: { api_version: '1.1.0', error: { code: 'INTERNAL_ERROR', message: err?.message || 'Unknown error' } } };
+
+    return defaultConfig;
   }
-}
 
-async function handleLine(line: string) {
-  line = line.trim();
-  if (!line) return;
-  let parsed: IncomingRequest;
-  try { parsed = JSON.parse(line); } catch (e) { return write({ id: 'unknown', error: { message: 'Invalid JSON' }}); }
-  const response = await executeTool(parsed);
-  write(response);
-}
-
-function write(obj: OutgoingResponse) {
-  process.stdout.write(JSON.stringify(obj) + '\n');
-}
-
-let buffer = '';
-process.stdin.on('data', chunk => {
-  buffer += chunk.toString();
-  let index;
-  while ((index = buffer.indexOf('\n')) >= 0) {
-    const line = buffer.slice(0, index);
-    buffer = buffer.slice(index + 1);
-    handleLine(line);
-  }
-});
-
-// Transport selection
-const args = process.argv.slice(2);
-const transportArg = args.find(a => a.startsWith('--transport='));
-const transport = transportArg ? transportArg.split('=')[1] : 'stdio';
-
-if (transport === 'http') {
-  const portArg = args.find(a => a.startsWith('--port='));
-  const port = portArg ? parseInt(portArg.split('=')[1], 10) : 3030;
-  const server = http.createServer(async (req, res) => {
-    // CORS headers
-    res.setHeader('Access-Control-Allow-Origin', process.env.MCP_CORS_ORIGIN || '*');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
-    if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-    const expectedToken = process.env.MCP_AUTH_TOKEN;
-    if (expectedToken) {
-      const auth = req.headers['authorization'];
-      if (auth !== `Bearer ${expectedToken}`) { res.writeHead(401); res.end(JSON.stringify({ error: { message: 'Unauthorized' }})); return; }
+  private getCurrentBranch(): string {
+    try {
+      return execSync('git rev-parse --abbrev-ref HEAD', { encoding: 'utf8' }).trim();
+    } catch {
+      return 'unknown';
     }
-    if (req.method === 'POST' && req.url === '/tool') {
-      let body = '';
-      req.on('data', chunk => body += chunk.toString());
-      req.on('end', async () => {
-        try {
-          const parsed: IncomingRequest = JSON.parse(body);
-          const response = await executeTool(parsed);
-          res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(JSON.stringify(response));
-        } catch (e: any) {
-          res.writeHead(400, { 'content-type': 'application/json' });
-            res.end(JSON.stringify({ error: { message: e?.message || 'Bad request' }}));
+  }
+
+  private isWorkingTreeClean(): boolean {
+    try {
+      const status = execSync('git status --porcelain', { encoding: 'utf8' });
+      return status.trim().length === 0;
+    } catch {
+      return false;
+    }
+  }
+
+  private isProtectedBranch(branch: string): boolean {
+    return this.config.protectedBranches.includes(branch);
+  }
+
+  private validateCommitMessage(message: string): { valid: boolean; message: string } {
+    if (!this.config.enforceCommitMessageFormat) {
+      return { valid: true, message: 'Commit message format validation disabled' };
+    }
+
+    const commitPattern = /^(feat|fix|docs|style|refactor|test|chore):\s.+/;
+    if (!commitPattern.test(message)) {
+      return {
+        valid: false,
+        message: `Commit message must follow format: "type: description". Allowed types: ${this.config.allowedCommitTypes.join(', ')}`
+      };
+    }
+
+    const type = message.split(':')[0];
+    if (!this.config.allowedCommitTypes.includes(type)) {
+      return {
+        valid: false,
+        message: `Invalid commit type "${type}". Allowed types: ${this.config.allowedCommitTypes.join(', ')}`
+      };
+    }
+
+    return { valid: true, message: 'Commit message format is valid' };
+  }
+
+  private getBranchType(branch: string): 'main' | 'integration' | 'feature' | 'hotfix' | 'other' {
+    if (this.config.protectedBranches.includes(branch)) return 'main';
+    if (branch === this.config.integrationBranch) return 'integration';
+    if (branch.startsWith(this.config.featureBranchPrefix)) return 'feature';
+    if (branch.startsWith(this.config.hotfixBranchPrefix)) return 'hotfix';
+    return 'other';
+  }
+
+  private getSuggestedWorkflow(currentBranch: string, command: string): string {
+    const branchType = this.getBranchType(currentBranch);
+    
+    if (command === 'commit' && branchType === 'main') {
+      return `Instead of committing to ${currentBranch}, create a feature branch:\n` +
+             `git checkout ${this.config.integrationBranch}\n` +
+             `git checkout -b feature/your-feature-name`;
+    }
+
+    if (command === 'push' && branchType === 'feature') {
+      return `After pushing your feature branch, merge to ${this.config.integrationBranch}:\n` +
+             `git checkout ${this.config.integrationBranch}\n` +
+             `git merge ${currentBranch}`;
+    }
+
+    if (command === 'merge' && branchType === 'main') {
+      return `Only merge ${this.config.integrationBranch} to ${currentBranch} after testing:\n` +
+             `Ensure ${this.config.integrationBranch} is tested and stable first`;
+    }
+
+    return '';
+  }
+
+  private validateGitCommand(command: string, args: string[] = []): { 
+    allowed: boolean; 
+    message: string; 
+    severity: 'info' | 'warning' | 'error';
+    suggestion?: string;
+    workflow?: string;
+  } {
+    const currentBranch = this.getCurrentBranch();
+    const isClean = this.isWorkingTreeClean();
+    const branchType = this.getBranchType(currentBranch);
+    const workflow = this.getSuggestedWorkflow(currentBranch, command);
+
+    // RULE: Never allow direct commits to main branches
+    if (command === 'commit' && branchType === 'main') {
+      return {
+        allowed: false,
+        message: `Direct commits to protected branch '${currentBranch}' are forbidden`,
+        severity: 'error',
+        suggestion: `Create a feature branch first: git checkout ${this.config.integrationBranch} && git checkout -b feature/your-feature`,
+        workflow
+      };
+    }
+
+    // RULE: Never allow direct pushes to main branches
+    if (command === 'push' && branchType === 'main' && !this.config.allowDirectPush) {
+      return {
+        allowed: false,
+        message: `Direct push to protected branch '${currentBranch}' is not allowed`,
+        severity: 'error',
+        suggestion: `Use the integration branch '${this.config.integrationBranch}' first, then create a PR`,
+        workflow
+      };
+    }
+
+    // RULE: Require clean working tree for pushes to integration branch
+    if (command === 'push' && branchType === 'integration' && this.config.requireCleanWorkingTree && !isClean) {
+      return {
+        allowed: false,
+        message: `Working tree must be clean before pushing to integration branch '${currentBranch}'`,
+        severity: 'error',
+        suggestion: 'Commit or stash your changes first'
+      };
+    }
+
+    // RULE: Warn about commits directly to integration branch
+    if (command === 'commit' && branchType === 'integration') {
+      return {
+        allowed: true,
+        message: `Committing directly to integration branch '${currentBranch}' - consider using a feature branch`,
+        severity: 'warning',
+        suggestion: `Create a feature branch: git checkout -b feature/your-feature`,
+        workflow
+      };
+    }
+
+    // RULE: Only allow merging from integration to main
+    if (command === 'merge' && branchType === 'main') {
+      const sourceBranch = args[0] || 'unknown';
+      if (sourceBranch !== this.config.integrationBranch) {
+        return {
+          allowed: false,
+          message: `Only '${this.config.integrationBranch}' can be merged into '${currentBranch}'`,
+          severity: 'error',
+          suggestion: `Merge to '${this.config.integrationBranch}' first, then merge to '${currentBranch}'`
+        };
+      }
+      return {
+        allowed: true,
+        message: `Merging '${sourceBranch}' into '${currentBranch}' - ensure it's tested and stable`,
+        severity: 'warning',
+        workflow
+      };
+    }
+
+    // RULE: Feature branches should merge to integration first
+    if (command === 'merge' && branchType === 'integration') {
+      const sourceBranch = args[0] || 'unknown';
+      const sourceBranchType = this.getBranchType(sourceBranch);
+      if (sourceBranchType === 'feature' || sourceBranchType === 'hotfix') {
+        return {
+          allowed: true,
+          message: `Merging '${sourceBranch}' into integration branch '${currentBranch}'`,
+          severity: 'info',
+          workflow
+        };
+      }
+    }
+
+    // RULE: Validate commit message format if provided
+    if (command === 'commit' && args.includes('-m')) {
+      const messageIndex = args.indexOf('-m') + 1;
+      if (messageIndex < args.length) {
+        const commitValidation = this.validateCommitMessage(args[messageIndex]);
+        if (!commitValidation.valid) {
+          return {
+            allowed: false,
+            message: commitValidation.message,
+            severity: 'error',
+            suggestion: 'Use format: "type: description" where type is one of: ' + this.config.allowedCommitTypes.join(', ')
+          };
         }
-      });
-    } else if (req.method === 'GET' && req.url === '/health') {
-      const response = await executeTool({ id: 'health', tool: 'server.health', input: {} });
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(JSON.stringify(response));
-    } else {
-      res.writeHead(404); res.end();
+      }
     }
-  });
-  server.listen(port, () => {
-    process.stderr.write(`git-rules-mcp HTTP listening on :${port}\n`);
-  });
-} else if (process.stdin.isTTY) {
-  (async () => {
-    const response = await executeTool({ id: 'demo', tool: 'server.info', input: {} });
-    process.stdout.write(JSON.stringify(response.result, null, 2) + '\n');
-  })();
+
+    // Default: Allow with appropriate context
+    return {
+      allowed: true,
+      message: `Command '${command}' is allowed on ${branchType} branch '${currentBranch}'`,
+      severity: 'info',
+      workflow: workflow || undefined
+    };
+  }
+
+  private getRepositoryStatus() {
+    const currentBranch = this.getCurrentBranch();
+    const isClean = this.isWorkingTreeClean();
+    const branchType = this.getBranchType(currentBranch);
+
+    let statusFiles: string[] = [];
+    if (!isClean) {
+      try {
+        const status = execSync('git status --porcelain', { encoding: 'utf8' });
+        statusFiles = status.split('\n').filter(line => line.trim()).map(line => line.trim());
+      } catch {
+        statusFiles = ['Unable to get file status'];
+      }
+    }
+
+    return {
+      branch: currentBranch,
+      branchType,
+      isClean,
+      isProtected: this.config.protectedBranches.includes(currentBranch),
+      config: this.config,
+      modifiedFiles: statusFiles
+    };
+  }
+
+  private suggestWorkflow(task: string): { 
+    workflow: string; 
+    commands: string[]; 
+    safety_checks: string[];
+    description: string;
+  } {
+    const currentBranch = this.getCurrentBranch();
+    const branchType = this.getBranchType(currentBranch);
+
+    switch (task) {
+      case 'start_feature':
+        return {
+          workflow: 'Create new feature branch',
+          description: 'Start new feature development following proper branching workflow',
+          commands: [
+            `git checkout ${this.config.integrationBranch}`,
+            `git pull origin ${this.config.integrationBranch}`,
+            'git checkout -b feature/your-feature-name'
+          ],
+          safety_checks: [
+            `Ensure you're on ${this.config.integrationBranch} branch`,
+            'Pull latest changes first',
+            'Use descriptive feature branch name'
+          ]
+        };
+
+      case 'merge_feature':
+        if (branchType !== 'feature') {
+          return {
+            workflow: 'Error: Not on feature branch',
+            description: `Currently on ${branchType} branch '${currentBranch}'. Switch to a feature branch first.`,
+            commands: [],
+            safety_checks: ['You must be on a feature branch to merge it']
+          };
+        }
+        return {
+          workflow: 'Merge feature to integration',
+          description: 'Merge completed feature to integration branch',
+          commands: [
+            `git push origin ${currentBranch}`,
+            `git checkout ${this.config.integrationBranch}`,
+            `git merge ${currentBranch}`,
+            `git push origin ${this.config.integrationBranch}`,
+            `git branch -d ${currentBranch}`,
+            `git push origin --delete ${currentBranch}`
+          ],
+          safety_checks: [
+            'Ensure feature is complete and tested',
+            'Working tree should be clean',
+            'Feature branch should be up to date'
+          ]
+        };
+
+      case 'promote_to_main':
+        if (currentBranch !== this.config.integrationBranch) {
+          return {
+            workflow: 'Error: Not on integration branch',
+            description: `Currently on '${currentBranch}'. Only ${this.config.integrationBranch} can be promoted to main.`,
+            commands: [],
+            safety_checks: [`You must be on ${this.config.integrationBranch} branch`]
+          };
+        }
+        return {
+          workflow: 'Promote integration to main',
+          description: 'Deploy tested integration branch to production',
+          commands: [
+            'git checkout main',
+            `git merge ${this.config.integrationBranch}`,
+            'git push origin main',
+            'git tag -a v$(date +%Y%m%d) -m "Release $(date +%Y-%m-%d)"'
+          ],
+          safety_checks: [
+            `${this.config.integrationBranch} must be fully tested`,
+            'All QA checks should pass',
+            'Deployment should be coordinated with team'
+          ]
+        };
+
+      case 'hotfix':
+        return {
+          workflow: 'Create emergency hotfix',
+          description: 'Create hotfix branch for urgent production fixes',
+          commands: [
+            'git checkout main',
+            'git pull origin main',
+            'git checkout -b hotfix/urgent-fix-name',
+            '# Make your fix',
+            'git add .',
+            'git commit -m "fix: urgent fix description"',
+            'git checkout main',
+            'git merge hotfix/urgent-fix-name',
+            `git checkout ${this.config.integrationBranch}`,
+            'git merge hotfix/urgent-fix-name',
+            'git push origin main',
+            `git push origin ${this.config.integrationBranch}`,
+            'git branch -d hotfix/urgent-fix-name'
+          ],
+          safety_checks: [
+            'Only for urgent production issues',
+            'Test the fix thoroughly',
+            'Merge to both main and integration'
+          ]
+        };
+
+      default:
+        return {
+          workflow: 'Unknown task',
+          description: `Task '${task}' is not recognized`,
+          commands: [],
+          safety_checks: ['Available tasks: start_feature, merge_feature, promote_to_main, hotfix']
+        };
+    }
+  }
+
+  private handleRequest(request: JsonRpcRequest): JsonRpcResponse {
+    try {
+      switch (request.method) {
+        case 'initialize':
+          return {
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              protocolVersion: '2024-11-05',
+              capabilities: {
+                tools: {}
+              },
+              serverInfo: {
+                name: 'git-rules-mcp',
+                version: '1.0.0'
+              }
+            }
+          };
+
+        case 'tools/list':
+          return {
+            jsonrpc: '2.0',
+            id: request.id,
+            result: {
+              tools: [
+                {
+                  name: 'validate_git_command',
+                  description: 'Validate a git command against repository workflow rules',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      command: { type: 'string', description: 'Git command to validate (push, commit, merge)' },
+                      args: { type: 'array', items: { type: 'string' }, description: 'Command arguments', default: [] }
+                    },
+                    required: ['command']
+                  }
+                },
+                {
+                  name: 'get_repository_status',
+                  description: 'Get current repository status, branch type, and workflow configuration',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                  }
+                },
+                {
+                  name: 'suggest_workflow',
+                  description: 'Get workflow suggestions for common git tasks',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {
+                      task: { 
+                        type: 'string', 
+                        enum: ['start_feature', 'merge_feature', 'promote_to_main', 'hotfix'],
+                        description: 'Workflow task to get suggestions for'
+                      }
+                    },
+                    required: ['task']
+                  }
+                }
+              ]
+            }
+          };
+
+        case 'tools/call':
+          const { name, arguments: toolArgs } = request.params;
+          
+          switch (name) {
+            case 'validate_git_command':
+              const { command, args = [] } = toolArgs;
+              const validation = this.validateGitCommand(command, args);
+              return {
+                jsonrpc: '2.0',
+                id: request.id,
+                result: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify(validation, null, 2)
+                    }
+                  ]
+                }
+              };
+
+            case 'get_repository_status':
+              const status = this.getRepositoryStatus();
+              return {
+                jsonrpc: '2.0',
+                id: request.id,
+                result: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify(status, null, 2)
+                    }
+                  ]
+                }
+              };
+
+            case 'suggest_workflow':
+              const { task } = toolArgs;
+              const workflowSuggestion = this.suggestWorkflow(task);
+              return {
+                jsonrpc: '2.0',
+                id: request.id,
+                result: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify(workflowSuggestion, null, 2)
+                    }
+                  ]
+                }
+              };
+
+            default:
+              return {
+                jsonrpc: '2.0',
+                id: request.id,
+                error: {
+                  code: -32601,
+                  message: `Unknown tool: ${name}`
+                }
+              };
+          }
+
+        default:
+          return {
+            jsonrpc: '2.0',
+            id: request.id,
+            error: {
+              code: -32601,
+              message: `Unknown method: ${request.method}`
+            }
+          };
+      }
+    } catch (error) {
+      return {
+        jsonrpc: '2.0',
+        id: request.id,
+        error: {
+          code: -32603,
+          message: 'Internal error',
+          data: error instanceof Error ? error.message : String(error)
+        }
+      };
+    }
+  }
+
+  public start(): void {
+    process.stdin.setEncoding('utf8');
+    
+    let buffer = '';
+    process.stdin.on('data', (chunk: string) => {
+      buffer += chunk;
+      
+      let newlineIndex;
+      while ((newlineIndex = buffer.indexOf('\n')) !== -1) {
+        const line = buffer.slice(0, newlineIndex).trim();
+        buffer = buffer.slice(newlineIndex + 1);
+        
+        if (line) {
+          try {
+            const request: JsonRpcRequest = JSON.parse(line);
+            const response = this.handleRequest(request);
+            process.stdout.write(JSON.stringify(response) + '\n');
+          } catch (error) {
+            const errorResponse: JsonRpcResponse = {
+              jsonrpc: '2.0',
+              id: 'unknown',
+              error: {
+                code: -32700,
+                message: 'Parse error'
+              }
+            };
+            process.stdout.write(JSON.stringify(errorResponse) + '\n');
+          }
+        }
+      }
+    });
+
+    process.stdin.on('end', () => {
+      process.exit(0);
+    });
+  }
+}
+
+// Start the server
+if (import.meta.url === `file://${process.argv[1]}`) {
+  const server = new GitRulesMCPServer();
+  server.start();
 }

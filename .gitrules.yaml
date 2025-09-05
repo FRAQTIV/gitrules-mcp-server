@@ -1,0 +1,29 @@
+# Git Workflow Rules Configuration
+# Copy this to your repository root and customize
+
+# Protected branches (main/production branches)
+protectedBranches:
+  - main
+  - master
+
+# Integration branch where features are merged first
+integrationBranch: dev
+
+# Branch prefixes for workflow organization
+featureBranchPrefix: feature/
+hotfixBranchPrefix: hotfix/
+
+# Workflow enforcement settings
+requireCleanWorkingTree: true
+allowDirectPush: false  # Never allow direct pushes to protected branches
+
+# Commit message validation
+enforceCommitMessageFormat: true
+allowedCommitTypes:
+  - feat      # New feature
+  - fix       # Bug fix
+  - docs      # Documentation
+  - style     # Formatting
+  - refactor  # Code restructuring
+  - test      # Adding tests
+  - chore     # Maintenance
