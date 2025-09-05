@@ -35,11 +35,11 @@ If you haven't already, install the git-rules-mcp server:
 ```bash
 # Recommended: One-liner setup (prevents permission errors)
 mkdir -p ~/.npm-global && \
-npm config set prefix ~/.npm-global && \
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && \
-source ~/.zshrc && \
-npm install -g @fraqtiv/git-rules-mcp && \
-mcp-git-rules --test
+  npm config set prefix ~/.npm-global && \
+  echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && \
+  source ~/.zshrc && \
+  npm install -g @fraqtiv/git-rules-mcp && \
+  mcp-git-rules --test
 ```
 
 ### Step 2: Configure in Warp Settings
@@ -57,22 +57,30 @@ mcp-git-rules --test
    **Standard Configuration:**
    ```json
    {
-     "name": "git-rules-mcp",
-     "description": "Git workflow rules and validation",
-     "command": "mcp-git-rules",
-     "args": [],
-     "env": {}
+     "mcpServers": {
+       "git-rules-mcp": {
+         "command": "mcp-git-rules",
+         "args": [],
+         "env": {},
+         "tools": ["*"],
+         "type": "local"
+       }
+     }
    }
    ```
 
    **Alternative Configuration (if using custom npm prefix):**
    ```json
    {
-     "name": "git-rules-mcp", 
-     "description": "Git workflow rules and validation",
-     "command": "/Users/username/.npm-global/bin/mcp-git-rules",
-     "args": [],
-     "env": {}
+     "mcpServers": {
+       "git-rules-mcp": {
+         "command": "/Users/username/.npm-global/bin/mcp-git-rules",
+         "args": [],
+         "env": {},
+         "tools": ["*"],
+         "type": "local"
+       }
+     }
    }
    ```
 
@@ -135,13 +143,17 @@ You can pass environment variables to the MCP server through Warp's configuratio
 
 ```json
 {
-  "name": "git-rules-mcp",
-  "description": "Git workflow rules and validation",
-  "command": "mcp-git-rules",
-  "args": [],
-  "env": {
-    "NODE_ENV": "production",
-    "DEBUG": "false"
+  "mcpServers": {
+    "git-rules-mcp": {
+      "command": "mcp-git-rules",
+      "args": [],
+      "env": {
+        "NODE_ENV": "production",
+        "DEBUG": "false"
+      },
+      "tools": ["*"],
+      "type": "local"
+    }
   }
 }
 ```
@@ -152,11 +164,15 @@ While the git-rules-mcp server doesn't currently support custom arguments, you c
 
 ```json
 {
-  "name": "git-rules-mcp",
-  "description": "Git workflow rules and validation", 
-  "command": "mcp-git-rules",
-  "args": ["--verbose", "--strict-mode"],
-  "env": {}
+  "mcpServers": {
+    "git-rules-mcp": {
+      "command": "mcp-git-rules",
+      "args": ["--verbose", "--strict-mode"],
+      "env": {},
+      "tools": ["*"],
+      "type": "local"
+    }
+  }
 }
 ```
 
