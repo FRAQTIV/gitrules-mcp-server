@@ -45,12 +45,16 @@ This MCP server acts as a **gatekeeper** that:
 # Install globally
 npm install -g @fraqtiv/git-rules-mcp
 
-# Test installation (if PATH configured correctly)
+# Verify installation works correctly
 mcp-git-rules --test
+# ↳ Tests MCP server initialization, git repo detection, and configuration loading
 
 # If command not found, add npm global bin to your PATH:
 echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.bashrc  # or ~/.zshrc
 source ~/.bashrc  # then retry: mcp-git-rules --test
+
+# Get help and usage information
+mcp-git-rules --help
 ```
 
 ### Troubleshooting Installation
@@ -268,7 +272,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm install -g @fraqtiv/git-rules-mcp
-      - run: mcp-git-rules analyze-compliance
+      - run: mcp-git-rules --test
 ```
 
 ---
@@ -286,7 +290,10 @@ jobs:
 echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
 source ~/.zshrc
 
-# Test the fix
+# Test the fix - should show:
+# ✅ MCP Server: Initialized successfully
+# ✅ Git Repository: Detected (or Not found if not in git repo)
+# ✅ Configuration: Loaded (X protected branches)
 mcp-git-rules --test
 ```
 
