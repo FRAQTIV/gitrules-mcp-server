@@ -33,6 +33,7 @@ interface GitRulesConfig {
   allowDirectPush: boolean;
   enforceCommitMessageFormat: boolean;
   allowedCommitTypes: string[];
+  strictMode: boolean; // Enforce strict workflow - no shortcuts allowed
 }
 
 class GitRulesMCPServer {
@@ -52,7 +53,8 @@ class GitRulesMCPServer {
       requireCleanWorkingTree: true,
       allowDirectPush: false,
       enforceCommitMessageFormat: true,
-      allowedCommitTypes: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore']
+      allowedCommitTypes: ['feat', 'fix', 'docs', 'style', 'refactor', 'test', 'chore'],
+      strictMode: true // Default to strict mode - no lazy shortcuts
     };
 
     if (existsSync(configPath)) {
@@ -188,14 +190,14 @@ class GitRulesMCPServer {
       };
     }
 
-    // RULE: Warn about commits directly to integration branch
+    // RULE: Block direct commits to integration branch - enforce feature branch workflow
     if (command === 'commit' && branchType === 'integration') {
       return {
-        allowed: true,
-        message: `Committing directly to integration branch '${currentBranch}' - consider using a feature branch`,
-        severity: 'warning',
-        suggestion: `Create a feature branch: git checkout -b feature/your-feature`,
-        workflow
+        allowed: false,
+        message: `Direct commits to integration branch '${currentBranch}' are forbidden - use feature branches`,
+        severity: 'error',
+        suggestion: `Create a feature branch: git checkout -b feature/descriptive-name`,
+        workflow: `Proper workflow:\n1. git checkout -b feature/your-feature\n2. Make your changes\n3. git add . && git commit -m "feat: your change"\n4. git push origin feature/your-feature\n5. git checkout ${currentBranch} && git merge feature/your-feature`
       };
     }
 
@@ -210,6 +212,17 @@ class GitRulesMCPServer {
           suggestion: `Merge to '${this.config.integrationBranch}' first, then merge to '${currentBranch}'`
         };
       }
+      // In strict mode, require explicit confirmation for production deployments
+      if (this.config.strictMode) {
+        return {
+          allowed: false,
+          message: `Merging '${sourceBranch}' into protected branch '${currentBranch}' requires explicit approval in strict mode`,
+          severity: 'error',
+          suggestion: `Use manual merge with explicit flags: git merge --no-ff ${sourceBranch}`,
+          workflow: `Production deployment workflow:\n1. Ensure all tests pass on ${sourceBranch}\n2. Code review completed\n3. Manual merge: git merge --no-ff ${sourceBranch}\n4. Tag release: git tag -a vX.X.X -m "Release vX.X.X"`
+        };
+      }
+      
       return {
         allowed: true,
         message: `Merging '${sourceBranch}' into '${currentBranch}' - ensure it's tested and stable`,
