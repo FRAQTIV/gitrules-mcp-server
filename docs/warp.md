@@ -74,7 +74,7 @@ mkdir -p ~/.npm-global && \
    {
      "mcpServers": {
        "git-rules-mcp": {
-         "command": "/Users/username/.npm-global/bin/mcp-git-rules",
+         "command": "/home/username/.npm-global/bin/mcp-git-rules",
          "args": [],
          "env": {},
          "tools": ["*"],
@@ -84,7 +84,22 @@ mkdir -p ~/.npm-global && \
    }
    ```
 
-   > **💡 Tip**: Replace `/Users/username/` with your actual home directory path
+   > **💡 Tip**: Replace `/home/username/` with your actual home directory path
+   
+   **For your specific system:**
+   ```json
+   {
+     "mcpServers": {
+       "git-rules-mcp": {
+         "command": "/home/b3l13v3r/.npm-global/bin/mcp-git-rules",
+         "args": [],
+         "env": {},
+         "tools": ["*"],
+         "type": "local"
+       }
+     }
+   }
+   ```
 
 ### Step 3: Test the Integration
 
