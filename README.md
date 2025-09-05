@@ -45,26 +45,40 @@ This MCP server acts as a **gatekeeper** that:
 
 ### 🎯 Recommended Setup (Prevents Permission Errors)
 
+**Copy and paste this entire block into your terminal:**
+
 ```bash
-# 1. Configure npm to use user directory (avoids permission issues)
-mkdir -p ~/.npm-global
-npm config set prefix ~/.npm-global
-
-# 2. Add npm global bin to your PATH
-echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc  # or ~/.zshrc for zsh users
-source ~/.bashrc  # or: source ~/.zshrc
-
-# 3. Install the package
-npm install -g @fraqtiv/git-rules-mcp
-
-# 4. Verify installation works
+# Setup npm user directory and install in one go:
+mkdir -p ~/.npm-global && \
+npm config set prefix ~/.npm-global && \
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && \
+source ~/.zshrc && \
+npm install -g @fraqtiv/git-rules-mcp && \
+echo "🎉 Installation complete! Testing..." && \
 mcp-git-rules --test
-# ✅ MCP Server: Initialized successfully
-# ✅ Git Repository: Detected (or Not found if not in git repo)  
-# ✅ Configuration: Loaded (X protected branches)
+```
 
-# 5. Get help and usage information
-mcp-git-rules --help
+**For Bash users**, replace `~/.zshrc` with `~/.bashrc`:
+
+```bash
+# Bash version:
+mkdir -p ~/.npm-global && \
+npm config set prefix ~/.npm-global && \
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc && \
+source ~/.bashrc && \
+npm install -g @fraqtiv/git-rules-mcp && \
+echo "🎉 Installation complete! Testing..." && \
+mcp-git-rules --test
+```
+
+**Expected output after running the above:**
+```
+🎉 Installation complete! Testing...
+🔍 Testing git-rules-mcp installation...
+✅ MCP Server: Initialized successfully
+✅ Git Repository: Detected (or Not found)
+✅ Configuration: Loaded (X protected branches)
+🎉 Installation test passed! The MCP server is ready to use.
 ```
 
 ### 🔧 Alternative: System-Wide Install (May Need Sudo)
@@ -81,25 +95,27 @@ mcp-git-rules --test
 
 ### 🚨 Quick Fixes for Common Issues
 
-**Still getting permission errors?** Use the Recommended Setup above instead of `npm install -g` directly.
+**Still getting permission errors?** Use the one-liner commands above instead of `npm install -g` directly.
 
-**Command not found after installation?** 
+**❌ "command not found: mcp-git-rules" after installation?** 
+You missed adding npm bin to your PATH. **Fix it now:**
+
 ```bash
-# Fix PATH - restart terminal after running:
-echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
-source ~/.zshrc
+# Quick fix (copy-paste this):
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.zshrc && source ~/.zshrc && mcp-git-rules --test
 
-# Or run with full path:
-$(npm config get prefix)/bin/mcp-git-rules --test
+# Or for Bash:
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc && source ~/.bashrc && mcp-git-rules --test
+
+# Alternative - run with full path once:
+~/.npm-global/bin/mcp-git-rules --test
 ```
 
-**Want to check if installed correctly?**
+**Want to verify installation status?**
 ```bash
-# Check installation status:
-npm list -g @fraqtiv/git-rules-mcp
-
-# Test functionality:
-mcp-git-rules --test
+npm list -g @fraqtiv/git-rules-mcp  # Check if installed
+which mcp-git-rules                 # Check if in PATH
+mcp-git-rules --help               # Show available options
 ```
 
 ## ⚡ Quick Setup by AI Assistant
