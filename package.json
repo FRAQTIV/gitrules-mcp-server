@@ -22,15 +22,26 @@
     "pack": "npm pack",
     "prepublishOnly": "npm run lint && npm run build"
   },
-  "keywords": ["mcp","git","rules","compliance","workflow"],
-  "repository": { "type": "git", "url": "git+https://github.com/FRAQTIV/gitrules-mcp-server.git" },
+  "keywords": [
+    "mcp",
+    "git",
+    "rules",
+    "compliance",
+    "workflow"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/FRAQTIV/gitrules-mcp-server.git"
+  },
   "dependencies": {
     "yaml": "^2.5.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",
-    "typescript": "^5.4.0",
+    "@typescript-eslint/eslint-plugin": "^8.42.0",
+    "@typescript-eslint/parser": "^8.42.0",
     "eslint": "^8.57.0",
-    "ts-node": "^10.9.2"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.4.0"
   }
 }

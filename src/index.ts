@@ -597,11 +597,28 @@ class GitRulesMCPServer {
             }
           };
 
-        case 'tools/call':
-          const { name, arguments: toolArgs } = request.params;
+        case 'tools/call': {
+          // Validate request.params
+          const params = request.params;
+          if (
+            !params ||
+            typeof params !== 'object' ||
+            typeof params.name !== 'string' ||
+            !('arguments' in params)
+          ) {
+            return {
+              jsonrpc: '2.0',
+              id: request.id,
+              error: {
+                code: -32602,
+                message: 'Invalid params: Expected an object with string "name" and "arguments" fields.'
+              }
+            };
+          }
+          const { name, arguments: toolArgs } = params;
           
           switch (name) {
-            case 'validate_git_command':
+            case 'validate_git_command': {
               const { command, args = [] } = toolArgs;
               const validation = this.validateGitCommand(command, args);
               return {
@@ -616,8 +633,9 @@ class GitRulesMCPServer {
                   ]
                 }
               };
+            }
 
-            case 'get_repository_status':
+            case 'get_repository_status': {
               const status = this.getRepositoryStatus();
               return {
                 jsonrpc: '2.0',
@@ -631,8 +649,9 @@ class GitRulesMCPServer {
                   ]
                 }
               };
+            }
 
-            case 'suggest_workflow':
+            case 'suggest_workflow': {
               const { task } = toolArgs;
               const workflowSuggestion = this.suggestWorkflow(task);
               return {
@@ -647,8 +666,9 @@ class GitRulesMCPServer {
                   ]
                 }
               };
+            }
 
-            case 'analyze_repository_compliance':
+            case 'analyze_repository_compliance': {
               const complianceAnalysis = this.analyzeRepositoryCompliance();
               return {
                 jsonrpc: '2.0',
@@ -662,6 +682,7 @@ class GitRulesMCPServer {
                   ]
                 }
               };
+            }
 
             default:
               return {
@@ -673,6 +694,7 @@ class GitRulesMCPServer {
                 }
               };
           }
+        }
 
         default:
           return {
@@ -714,7 +736,7 @@ class GitRulesMCPServer {
             const request: JsonRpcRequest = JSON.parse(line);
             const response = this.handleRequest(request);
             process.stdout.write(JSON.stringify(response) + '\n');
-          } catch (error) {
+          } catch (_error) {
             const errorResponse: JsonRpcResponse = {
               jsonrpc: '2.0',
               id: 'unknown',
