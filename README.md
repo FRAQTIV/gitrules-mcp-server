@@ -126,6 +126,7 @@ Choose your AI coding assistant for specific setup instructions:
 |-----------|-------------------|------------------|
 | [**Claude Code**](docs/claude-code.md) | Native MCP support with workflow configuration | ⭐⭐⭐ |
 | [**Cursor**](docs/cursor.md) | MCP + .cursorrules integration | ⭐⭐ |
+| [**Warp Terminal**](#-warp-terminal-setup) | Built-in MCP support with direct server configuration | ⭐⭐ |
 | [**GitHub Copilot**](docs/github-copilot.md) | Bridge extensions + git hooks | ⭐⭐⭐⭐ |
 | [**KILOCODE**](docs/kilocode.md) | Plugin system integration | ⭐⭐⭐ |
 
@@ -165,6 +166,82 @@ allowedCommitTypes:
   - test      # Adding tests
   - chore     # Maintenance
 ```
+
+## 🔥 Warp Terminal Setup
+
+Warp Terminal has built-in MCP support, making it easy to add git-rules-mcp server directly in the terminal settings.
+
+### Step 1: Install the MCP Server
+
+First, install the server using the [Quick Install](#-quick-install) instructions above.
+
+### Step 2: Configure in Warp Settings
+
+1. **Open Warp Terminal Settings**
+   - Press `Cmd + ,` (macOS) or `Ctrl + ,` (Linux/Windows)
+   - Or click the **Settings** icon in Warp
+
+2. **Navigate to MCP Servers**
+   - Go to **Features** → **Model Context Protocol**
+   - Click **Add MCP Server** or **Configure Servers**
+
+3. **Add Git Rules MCP Server**
+   ```json
+   {
+     "name": "git-rules-mcp",
+     "description": "Git workflow rules and validation",
+     "command": "mcp-git-rules",
+     "args": [],
+     "env": {}
+   }
+   ```
+
+4. **Alternative Configuration (if using custom npm prefix)**
+   ```json
+   {
+     "name": "git-rules-mcp", 
+     "description": "Git workflow rules and validation",
+     "command": "/home/username/.npm-global/bin/mcp-git-rules",
+     "args": [],
+     "env": {}
+   }
+   ```
+
+### Step 3: Test the Integration
+
+1. **Restart Warp Terminal** (if required by your Warp version)
+2. **Verify MCP Server is Active**
+   - Look for git-rules-mcp in active MCP servers list
+   - Server status should show as "Connected" or "Active"
+
+3. **Test Git Workflow Commands**
+   - Navigate to a git repository
+   - The MCP server will now validate git commands and provide workflow guidance
+   - AI assistant in Warp can now access git rules tools
+
+### Expected Behavior
+
+Once configured, Warp's AI assistant will:
+- ✅ **Validate git commands** before execution
+- ✅ **Suggest proper workflows** for branch management  
+- ✅ **Prevent accidental commits** to protected branches
+- ✅ **Enforce commit message standards**
+
+### Troubleshooting Warp Integration
+
+**MCP Server Not Found:**
+```bash
+# Check if mcp-git-rules is in PATH
+which mcp-git-rules
+
+# If not found, use full path in Warp config:
+which mcp-git-rules || echo "Use: $(npm config get prefix)/bin/mcp-git-rules"
+```
+
+**Server Connection Issues:**
+- Ensure mcp-git-rules is executable: `chmod +x ~/.npm-global/bin/mcp-git-rules`
+- Test server manually: `mcp-git-rules --test`
+- Check Warp MCP logs in Settings → Features → Model Context Protocol → Logs
 
 ---
 
