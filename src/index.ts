@@ -396,6 +396,120 @@ class GitRulesMCPServer {
     }
   }
 
+  private analyzeRepositoryCompliance(): {
+    isCompliant: boolean;
+    issues: Array<{
+      type: 'missing_branch' | 'extra_branch' | 'misnamed_branch' | 'config_mismatch';
+      severity: 'error' | 'warning' | 'info';
+      description: string;
+      currentState: string;
+      expectedState: string;
+      recommendedAction: string;
+      question: string;
+    }>;
+    summary: string;
+  } {
+    const issues: Array<{
+      type: 'missing_branch' | 'extra_branch' | 'misnamed_branch' | 'config_mismatch';
+      severity: 'error' | 'warning' | 'info';
+      description: string;
+      currentState: string;
+      expectedState: string;
+      recommendedAction: string;
+      question: string;
+    }> = [];
+
+    try {
+      // Get all branches
+      const allBranches = execSync('git branch -a', { encoding: 'utf8' })
+        .split('\n')
+        .map(branch => branch.replace(/^\*?\s*/, '').replace(/^remotes\/origin\//, ''))
+        .filter(branch => branch && branch !== 'HEAD' && !branch.includes('->'))
+        .filter((branch, index, self) => self.indexOf(branch) === index); // dedupe
+
+      // Check if expected integration branch exists
+      const integrationBranchExists = allBranches.includes(this.config.integrationBranch);
+      
+      if (!integrationBranchExists) {
+        // Check for similar branches that might be the intended integration branch
+        const similarBranches = allBranches.filter(branch => 
+          branch.includes('dev') || branch.includes('develop') || branch.includes('integration')
+        );
+
+        if (similarBranches.length > 0) {
+          issues.push({
+            type: 'misnamed_branch',
+            severity: 'error',
+            description: `Integration branch '${this.config.integrationBranch}' not found, but similar branches exist`,
+            currentState: `Available branches: ${similarBranches.join(', ')}`,
+            expectedState: `Integration branch: ${this.config.integrationBranch}`,
+            recommendedAction: `Rename existing branch or update config`,
+            question: `Should I rename '${similarBranches[0]}' to '${this.config.integrationBranch}' or update the config to use '${similarBranches[0]}'?`
+          });
+        } else {
+          issues.push({
+            type: 'missing_branch',
+            severity: 'error', 
+            description: `Integration branch '${this.config.integrationBranch}' does not exist`,
+            currentState: `Available branches: ${allBranches.join(', ')}`,
+            expectedState: `Integration branch: ${this.config.integrationBranch}`,
+            recommendedAction: `Create integration branch from main`,
+            question: `Should I create the missing integration branch '${this.config.integrationBranch}' from main?`
+          });
+        }
+      }
+
+      // Check for protected branches that exist
+      const missingProtectedBranches = this.config.protectedBranches.filter(branch => 
+        !allBranches.includes(branch)
+      );
+
+      missingProtectedBranches.forEach(branch => {
+        issues.push({
+          type: 'missing_branch',
+          severity: 'warning',
+          description: `Protected branch '${branch}' does not exist`,
+          currentState: `Available branches: ${allBranches.join(', ')}`,
+          expectedState: `Protected branch: ${branch}`,
+          recommendedAction: `Create protected branch or remove from config`,
+          question: `Should I create the protected branch '${branch}' or remove it from the configuration?`
+        });
+      });
+
+      const isCompliant = issues.length === 0;
+      const errorCount = issues.filter(i => i.severity === 'error').length;
+      const warningCount = issues.filter(i => i.severity === 'warning').length;
+
+      let summary = '';
+      if (isCompliant) {
+        summary = '✅ Repository is fully compliant with git workflow rules';
+      } else {
+        summary = `❌ Repository has compliance issues: ${errorCount} errors, ${warningCount} warnings`;
+      }
+
+      return {
+        isCompliant,
+        issues,
+        summary
+      };
+
+    } catch (error) {
+      return {
+        isCompliant: false,
+        issues: [{
+          type: 'config_mismatch',
+          severity: 'error',
+          description: 'Unable to analyze repository compliance',
+          currentState: `Error: ${error}`,
+          expectedState: 'Accessible git repository',
+          recommendedAction: 'Ensure you are in a valid git repository',
+          question: 'Are you in the correct git repository directory?'
+        }],
+        summary: '❌ Unable to analyze repository compliance'
+      };
+    }
+  }
+
   private handleRequest(request: JsonRpcRequest): JsonRpcResponse {
     try {
       switch (request.method) {
@@ -456,6 +570,15 @@ class GitRulesMCPServer {
                     },
                     required: ['task']
                   }
+                },
+                {
+                  name: 'analyze_repository_compliance',
+                  description: 'Analyze repository compliance with git workflow rules and identify misalignments',
+                  inputSchema: {
+                    type: 'object',
+                    properties: {},
+                    required: []
+                  }
                 }
               ]
             }
@@ -507,6 +630,21 @@ class GitRulesMCPServer {
                     {
                       type: 'text',
                       text: JSON.stringify(workflowSuggestion, null, 2)
+                    }
+                  ]
+                }
+              };
+
+            case 'analyze_repository_compliance':
+              const complianceAnalysis = this.analyzeRepositoryCompliance();
+              return {
+                jsonrpc: '2.0',
+                id: request.id,
+                result: {
+                  content: [
+                    {
+                      type: 'text',
+                      text: JSON.stringify(complianceAnalysis, null, 2)
                     }
                   ]
                 }
