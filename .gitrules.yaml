@@ -1,27 +1,29 @@
 # Git Workflow Rules Configuration
-# Copy this to your repository root and customize
+# This enforces the workflow defined in git-workflow-rules.md
+# git-workflow-rules.md is the authority - this config implements those rules
 
-# Protected branches (main/production branches)
+# Protected branches - ONLY main is protected per git-workflow-rules.md
+# Rule: "Never suggest direct commits to main"
 protectedBranches:
   - main
-  - master
 
-# Integration branch where features are merged first
+# Integration branch where features are merged first  
+# Rule: "All feature branches merge here first" - dev is freely writable
 integrationBranch: dev
 
-# Branch prefixes for workflow organization
+# Branch prefixes for workflow organization per git-workflow-rules.md
 featureBranchPrefix: feature/
 hotfixBranchPrefix: hotfix/
 
-# Workflow enforcement settings
+# Workflow enforcement settings per git-workflow-rules.md
 requireCleanWorkingTree: true
-allowDirectPush: false  # Never allow direct pushes to protected branches
+allowDirectPush: false  # Never allow direct pushes to protected branches (main only)
 
-# Commit message validation
+# Commit message validation - matches git-workflow-rules.md format exactly
 enforceCommitMessageFormat: true
 allowedCommitTypes:
   - feat      # New feature
-  - fix       # Bug fix
+  - fix       # Bug fix  
   - docs      # Documentation
   - style     # Formatting
   - refactor  # Code restructuring
