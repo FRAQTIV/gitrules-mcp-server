@@ -45,7 +45,31 @@ This MCP server acts as a **gatekeeper** that:
 # Install globally
 npm install -g @fraqtiv/git-rules-mcp
 
-# Test installation
+# Test installation (if PATH configured correctly)
+mcp-git-rules --test
+
+# If command not found, add npm global bin to your PATH:
+echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc  # then retry: mcp-git-rules --test
+```
+
+### Troubleshooting Installation
+
+If you see `command not found: mcp-git-rules` after installation:
+
+```bash
+# Check if package is installed
+npm list -g @fraqtiv/git-rules-mcp
+
+# Fix PATH issue (most common solution)
+echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.zshrc
+source ~/.zshrc
+
+# Alternative: run with full path
+$(npm config get prefix)/bin/mcp-git-rules --test
+
+# Or if using custom npm prefix like ~/.npm-global:
+export PATH=~/.npm-global/bin:$PATH
 mcp-git-rules --test
 ```
 
@@ -253,7 +277,35 @@ jobs:
 
 ### Common Issues
 
-**MCP Server Not Found**
+**Command Not Found After Installation**
+```bash
+# Error: zsh: command not found: mcp-git-rules
+
+# Most common cause: npm global bin not in PATH
+# Solution: Add npm global bin to your shell PATH
+echo 'export PATH="$(npm config get prefix)/bin:$PATH"' >> ~/.zshrc  # or ~/.bashrc
+source ~/.zshrc
+
+# Test the fix
+mcp-git-rules --test
+```
+
+**Permission Denied During Installation**
+```bash
+# Error: EACCES: permission denied, mkdir '/usr/lib/node_modules/@fraqtiv'
+
+# Solution 1: Configure npm to use user directory (recommended)
+mkdir -p ~/.npm-global
+npm config set prefix '~/.npm-global'
+echo 'export PATH=~/.npm-global/bin:$PATH' >> ~/.bashrc  # or ~/.zshrc
+source ~/.bashrc  # or source ~/.zshrc
+npm install -g @fraqtiv/git-rules-mcp
+
+# Solution 2: Use sudo (not recommended for security)
+sudo npm install -g @fraqtiv/git-rules-mcp
+```
+
+**Package Installation Issues**
 ```bash
 # Check installation
 npm list -g @fraqtiv/git-rules-mcp

@@ -36,7 +36,7 @@ interface GitRulesConfig {
 }
 
 class GitRulesMCPServer {
-  private config: GitRulesConfig;
+  config: GitRulesConfig;
 
   constructor() {
     this.config = this.loadConfig();
@@ -257,7 +257,7 @@ class GitRulesMCPServer {
     };
   }
 
-  private getRepositoryStatus() {
+  getRepositoryStatus() {
     const currentBranch = this.getCurrentBranch();
     const isClean = this.isWorkingTreeClean();
     const branchType = this.getBranchType(currentBranch);
@@ -722,8 +722,53 @@ class GitRulesMCPServer {
   }
 }
 
+// Handle command line arguments
+function handleCLI() {
+  const args = process.argv.slice(2);
+  
+  if (args.includes('--test') || args.includes('-t')) {
+    console.log('🔍 Testing git-rules-mcp installation...\n');
+    
+    try {
+      const server = new GitRulesMCPServer();
+      console.log('✅ MCP Server: Initialized successfully');
+      
+      // Test git repository detection
+      const status = server.getRepositoryStatus();
+      console.log(`✅ Git Repository: ${status.branch ? 'Detected' : 'Not found'}`);
+      
+      // Test configuration loading
+      console.log(`✅ Configuration: Loaded (${server.config.protectedBranches.length} protected branches)`);
+      
+      console.log('\n🎉 Installation test passed! The MCP server is ready to use.');
+      console.log('\n💡 Usage:');
+      console.log('  • Add to MCP client configuration');
+      console.log('  • Use with Claude Code, Cursor, or other MCP-enabled assistants');
+      console.log('  • Run echo \'{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}\' | mcp-git-rules');
+      
+      process.exit(0);
+    } catch (error) {
+      console.error('❌ Installation test failed:');
+      console.error(`   ${(error as Error).message}`);
+      process.exit(1);
+    }
+  }
+  
+  if (args.includes('--help') || args.includes('-h')) {
+    console.log('Git Rules MCP Server\n');
+    console.log('Usage: mcp-git-rules [options]\n');
+    console.log('Options:');
+    console.log('  --test, -t     Test installation and configuration');
+    console.log('  --help, -h     Show this help message');
+    console.log('  (no args)      Start MCP server (for use with MCP clients)');
+    process.exit(0);
+  }
+}
+
 // Start the server
 if (import.meta.url === `file://${process.argv[1]}`) {
+  handleCLI();
+  
   const server = new GitRulesMCPServer();
   server.start();
 }
