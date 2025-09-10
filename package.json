@@ -1,16 +1,24 @@
 {
   "name": "@fraqtiv/git-rules-mcp",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Simple MCP server for Git rules compliance and workflow validation.",
   "type": "module",
   "license": "MIT",
   "private": false,
+  "main": "./dist/index.js",
   "bin": {
-    "mcp-git-rules": "dist/index.js"
+    "mcp-git-rules": "./bin/mcp-git-rules"
   },
   "exports": {
     ".": "./dist/index.js"
   },
+  "files": [
+    "dist",
+    "bin",
+    "README.md",
+    "LICENSE",
+    "package.json"
+  ],
   "engines": {
     "node": ">=18"
   },
@@ -20,7 +28,8 @@
     "lint": "eslint . --ext .ts",
     "test": "npm run build && node dist/index.js --test",
     "pack": "npm pack",
-    "prepublishOnly": "npm run lint && npm run build"
+    "prepublishOnly": "npm run lint && npm run build && npm run postbuild",
+    "postbuild": "node scripts/postbuild.js"
   },
   "keywords": [
     "mcp",
