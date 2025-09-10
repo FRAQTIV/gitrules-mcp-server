@@ -26,7 +26,6 @@ docs/
 
 # Scripts (except postbuild)
 scripts/
-!scripts/postbuild.js
 
 # Test files
 *.test.*

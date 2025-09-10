@@ -43,7 +43,7 @@
     "url": "git+https://github.com/FRAQTIV/gitrules-mcp-server.git"
   },
   "dependencies": {
-    "yaml": "^2.5.0"
+  "yaml": "^2.8.1"
   },
   "devDependencies": {
     "@types/node": "^20.11.30",

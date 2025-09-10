@@ -7,16 +7,40 @@ const distPath = join(process.cwd(), 'dist', 'index.js');
 const binPath = join(process.cwd(), 'bin', 'mcp-git-rules');
 
 try {
-  // Ensure dist/index.js has shebang
-  const content = readFileSync(distPath, 'utf8');
+  // Ensure dist/index.js exists before reading
+  if (!require('fs').existsSync(distPath)) {
+    console.error(`❌ dist/index.js not found at expected path: ${distPath}`);
+    process.exit(2);
+  }
+  let content;
+  try {
+    content = readFileSync(distPath, 'utf8');
+  } catch (error) {
+    console.error(`❌ Failed to read dist/index.js at ${distPath}:`, error);
+    throw error;
+  }
   if (!content.startsWith('#!/usr/bin/env node')) {
-    writeFileSync(distPath, '#!/usr/bin/env node\n' + content);
-    console.log('✅ Added shebang to dist/index.js');
+    try {
+      writeFileSync(distPath, '#!/usr/bin/env node\n' + content);
+      console.log('✅ Added shebang to dist/index.js');
+    } catch (error) {
+      console.error(`❌ Failed to write shebang to dist/index.js at ${distPath}:`, error);
+      throw error;
+    }
   }
   
-  // Make both files executable
+  // Make dist/index.js executable
   chmodSync(distPath, 0o755);
-  chmodSync(binPath, 0o755);
+  // Make bin/mcp-git-rules executable if it exists
+  try {
+    if (require('fs').existsSync(binPath)) {
+      chmodSync(binPath, 0o755);
+    } else {
+      console.log(`⚠️  Skipped chmod: ${binPath} does not exist`);
+    }
+  } catch (e) {
+    console.log(`⚠️  Could not chmod ${binPath}:`, e.message);
+  }
   console.log('✅ Made files executable');
 } catch (error) {
   console.error('❌ Postbuild failed:', error);
