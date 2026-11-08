@@ -1,5 +1,16 @@
 # Git Rules MCP Server
 
+> **⚠️ Archived (2026-11-08).** This project is no longer maintained and the npm package `@fraqtiv/git-rules-mcp` is deprecated.
+>
+> The server was advisory only: it could not see or block a git command, it only answered when an assistant chose to ask first. Use enforcement that does not depend on the model cooperating:
+>
+> - **GitHub rulesets / branch protection** on `main` and `dev` (require a PR, block force-push and deletion). Server-side, covers every tool and every human.
+> - **Claude Code `PreToolUse` hook** on `Bash` that inspects the command and exits 2 to block pushes or commits to protected branches before they run.
+> - **Git hooks** (`.githooks/pre-push`, `commit-msg` via `git config core.hooksPath .githooks`) for branch naming and Conventional Commits, in every editor and terminal.
+> - A `.gitrules.yaml` or `CLAUDE.md` policy document for the workflow guidance this server's `suggest_workflow` tool returned.
+>
+> The code below is kept for reference.
+
 [![npm version](https://img.shields.io/npm/v/@fraqtiv/git-rules-mcp.svg)](https://www.npmjs.com/package/@fraqtiv/git-rules-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![CI Status](https://github.com/FRAQTIV/gitrules-mcp-server/workflows/CI/badge.svg)](https://github.com/FRAQTIV/gitrules-mcp-server/actions)
